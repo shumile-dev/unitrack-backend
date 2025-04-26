@@ -1,31 +1,31 @@
-require('dotenv').config();
-const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
+const express = require("express");
+const dbConnect = require("./database/index");
+const router = require("./routes/index");
+const errorHandler = require("./middlewares/errorHandler");
+const cookieParser = require("cookie-parser");
+const cors = require("cors");
+
+const PORT = 5000;
+
+const corsOptions = {
+  credentials: true,
+  origin: ["*", "http://localhost:3001"], /// This should match the React Native development server URL
+};
 
 const app = express();
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+app.use(cookieParser());
+app.use(cors(corsOptions));
 
-// MongoDB connection
-const PORT = process.env.PORT || 5000;
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/unitrack';
+app.use(express.json({ limit: "50mb" }));
 
-mongoose.connect(MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-  .then(() => console.log('MongoDB connected'))
-  .catch((err) => console.error('MongoDB connection error:', err));
+app.use(router);
 
-// Simple route
-app.get('/', (req, res) => {
-  res.send('Hello from MERN backend!');
-});
+dbConnect();
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
+app.use("/storage", express.static("storage"));
+app.use("/storage", express.static("D:\\unitrack-backend\\storage"));
+
+app.use(errorHandler);
+
+app.listen(PORT, () => console.log(`Backend is running on port: ${PORT}`));

@@ -22,6 +22,12 @@ const userSchema = new Schema({
     }
   },
   designation: { type: String }, // Optional field for designation
+  
+  // Fields from Signup form
+  rollNumber: { type: String },
+  semester: { type: String },
+  department: { type: String },
+  degree: { type: String }
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema, 'users');

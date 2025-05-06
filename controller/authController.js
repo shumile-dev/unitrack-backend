@@ -5,7 +5,7 @@ const UserDTO = require("../dto/user");
 const JWTService = require("../services/JWTService");
 const RefreshToken = require("../models/token");
 const cloudinary = require('cloudinary').v2;
- const streamifier = require('streamifier');
+const streamifier = require('streamifier');
 const Blog=require('../models/blog')
 const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,25}$/;
 
@@ -22,7 +22,11 @@ const authController = {
       password: Joi.string().pattern(passwordPattern).required(),
       confirmPassword: Joi.ref("password"),
       role: Joi.string().valid("buyer","provider", "admin"),
-     
+      // New fields from updated User schema
+      rollNumber: Joi.string(),
+      semester: Joi.string(),
+      department: Joi.string(),
+      degree: Joi.string()
     });
     const { error } = userRegisterSchema.validate(req.body);
 
@@ -32,14 +36,14 @@ const authController = {
     }
 
     // 3. if email or username is already registered -> return an error
-    const { name,phone, email, password,role} = req.body;
+    const { name, phone, email, password, role, rollNumber, semester, department, degree } = req.body;
 
     try {
       const emailInUse = await User.exists({ email });
 
       // const usernameInUse = await User.exists({ username });
       
-      const usernameInUse = await User.exists({ name});
+      const usernameInUse = await User.exists({ name });
 
       if (emailInUse) {
         const error = {
@@ -78,7 +82,12 @@ const authController = {
         name,
         phone,
         password: hashedPassword,
-        role
+        role,
+        // Add new fields from schema
+        rollNumber,
+        semester,
+        department,
+        degree
       });
 
       user = await userToRegister.save();
@@ -342,9 +351,10 @@ console.log(req.body)
   },
 // Enhanced with proper error handling and status codes
 async updateUser(req, res, next) {
-  try {console.log('updating')
+  try {
+    console.log('updating')
     const userId = req.params.id;
-    const { name, phone, email, profileImage, location } = req.body;
+    const { name, phone, email, profileImage, location, rollNumber, semester, department, degree } = req.body;
     
     // Validate required fields
     if (!userId) {
@@ -357,6 +367,10 @@ async updateUser(req, res, next) {
     if (phone) updateData.phone = phone;
     if (email) updateData.email = email;
     if (profileImage) updateData.profileImage = profileImage;
+    if (rollNumber) updateData.rollNumber = rollNumber;
+    if (semester) updateData.semester = semester;
+    if (department) updateData.department = department;
+    if (degree) updateData.degree = degree;
     
     // Handle location update
     if (location) {
@@ -385,7 +399,7 @@ async updateUser(req, res, next) {
 
     res.json({
       success: true,
-      message: 'Location updated successfully',
+      message: 'User updated successfully',
       user: updatedUser
     });
     

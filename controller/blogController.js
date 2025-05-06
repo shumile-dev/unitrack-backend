@@ -28,67 +28,87 @@ const blogController = {
     console.log("inside crearteeeeeeeee");
     const createBlogSchema = Joi.object({
       title: Joi.string().required(),
-      author: Joi.string().regex(mongodbIdPattern).required(),
-      content: Joi.string().required(),
-      type: Joi.string().valid("food", "rental").required(),
-      price: Joi.number().required(),
+      author: Joi.string().regex(mongodbIdPattern),
+      description: Joi.string().required(),
+      location: Joi.string().required(),
+      latitude: Joi.number(),
+      longitude: Joi.number(),
+      date: Joi.date().required(),
+      reporter: Joi.string().required(),
+      type: Joi.string().valid("found", "lost").required(),
+      photoPath: Joi.string(),
+      isBlocked: Joi.boolean()
     });
 
     const { error } = createBlogSchema.validate(req.body);
     if (error) return next(error);
     console.log("no error ");
-    const { title, author, content, type, price } = req.body;
-    const file = req.file;
+    const { title, author, description, location, latitude, longitude, date, reporter, type, photoPath, isBlocked } = req.body;
+    
+    let finalPhotoUrl = photoPath;
 
-    if (!file) {
-      return res.status(400).json({ error: "Photo file is required" });
-    }
+    // If no direct photoPath is provided, process uploaded file
+    if (!photoPath && req.file) {
+      const file = req.file;
 
-    let photoUrl;
+      if (!file) {
+        return res.status(400).json({ error: "Photo file is required" });
+      }
 
-    try {
-      console.log("inside try");
-      // Upload buffer using cloudinary upload_stream
-      const result = await new Promise((resolve, reject) => {
-        const stream = cloudinary.uploader.upload_stream(
-          {
-            folder: "post_photos", // You can change the folder name if needed
-            resource_type: "auto", // 👈 this is important for videos
-          },
-          (error, result) => {
-            if (error) return reject(error);
-            resolve(result);
-          }
-        );
-        stream.end(file.buffer); // send the buffer here
-      });
+      try {
+        console.log("inside try");
+        // Upload buffer using cloudinary upload_stream
+        const result = await new Promise((resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream(
+            {
+              folder: "post_photos", // You can change the folder name if needed
+              resource_type: "auto", // 👈 this is important for videos
+            },
+            (error, result) => {
+              if (error) return reject(error);
+              resolve(result);
+            }
+          );
+          stream.end(file.buffer); // send the buffer here
+        });
 
-      photoUrl = result.secure_url;
-      console.log("photoUrl:", photoUrl);
-    } catch (cloudinaryError) {
-      console.error("Cloudinary Upload Error:", cloudinaryError);
-      return res
-        .status(500)
-        .json({ error: "Failed to upload photo to Cloudinary" });
+        finalPhotoUrl = result.secure_url;
+        console.log("photoUrl:", finalPhotoUrl);
+      } catch (cloudinaryError) {
+        console.error("Cloudinary Upload Error:", cloudinaryError);
+        return res
+          .status(500)
+          .json({ error: "Failed to upload photo to Cloudinary" });
+      }
+    } else if (!photoPath && !req.file) {
+      return res.status(400).json({ error: "Either photoPath or file upload is required" });
     }
 
     try {
       console.log("inside try 2");
       const newBlog = new Blog({
         title,
-        author,
-        content,
-        photoPath: photoUrl,
+        description,
+        photoPath: finalPhotoUrl,
+        location,
+        latitude,
+        longitude,
+        date,
+        reporter,
         type,
-        price,
+        author: author || null,
+        isBlocked: isBlocked || false
       });
 
       await newBlog.save();
-      await newBlog.populate("author", "username");
+      if (author) {
+        await newBlog.populate("author", "username");
+      }
 
       const blogDto = new BlogDTO(newBlog);
       return res.status(201).json({ blog: blogDto });
     } catch (dbError) {
+      console.error("Database Error:", dbError);
       return res.status(500).json({ error: "Failed to save blog to database" });
     }
   },
@@ -177,16 +197,21 @@ const blogController = {
 
     const updateBlogSchema = Joi.object({
       title: Joi.string().required(),
-      content: Joi.string().required(),
-      author: Joi.string().regex(mongodbIdPattern).required(),
+      description: Joi.string().required(),
+      location: Joi.string().required(),
+      latitude: Joi.number(),
+      longitude: Joi.number(),
+      date: Joi.date().required(),
+      reporter: Joi.string().required(),
+      type: Joi.string().valid("found", "lost").required(),
+      author: Joi.string().regex(mongodbIdPattern),
       blogId: Joi.string().regex(mongodbIdPattern).required(),
-      photo: Joi.string(),
-      price: Joi.number().required(), // Add price validation
+      photoPath: Joi.string(),
     });
 
     const { error } = updateBlogSchema.validate(req.body);
 
-    const { title, content, author, blogId, photo, price } = req.body;
+    const { title, description, location, latitude, longitude, date, reporter, type, author, blogId, photoPath } = req.body;
 
     // delete previous photo
     // save new photo
@@ -199,7 +224,7 @@ const blogController = {
       return next(error);
     }
 
-    if (photo) {
+    if (photoPath) {
       let previousPhoto = blog.photoPath;
 
       previousPhoto = previousPhoto.split("/").at(-1);
@@ -219,7 +244,7 @@ const blogController = {
       // save locally
       let response;
       try {
-        response = await cloudinary.uploader.upload(photo);
+        response = await cloudinary.uploader.upload(photoPath);
         // fs.writeFileSync(`storage/${imagePath}`, buffer);
       } catch (error) {
         return next(error);
@@ -229,13 +254,30 @@ const blogController = {
         { _id: blogId },
         {
           title,
-          content,
+          description,
           photoPath: response.url,
-          price,
+          location,
+          latitude,
+          longitude,
+          date,
+          reporter,
+          type
         }
       );
     } else {
-      await Blog.updateOne({ _id: blogId }, { title, content });
+      await Blog.updateOne(
+        { _id: blogId },
+        {
+          title,
+          description,
+          location,
+          latitude,
+          longitude,
+          date,
+          reporter,
+          type
+        }
+      );
     }
 
     return res.status(200).json({ message: "blog updated!" });

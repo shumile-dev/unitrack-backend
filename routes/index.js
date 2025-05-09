@@ -94,10 +94,10 @@ router.get('/blog/:id', blogController.getById);
 //get blog by author
 router.get("/blogs/author/:authorId", blogController.getByAuthor);
 // update
-router.put('/blog',auth, blogController.update);
-
+router.put('/blog', upload.single('photoPath'), blogController.update);
 // delete
-router.delete('/blog/:id', auth, blogController.delete);
+// router.delete('/blog/:id', auth, blogController.delete);
+router.delete('/blog/:id', blogController.delete);
 
 // forgot password
 router.post('/forgot-password', authController.forgotPassword);

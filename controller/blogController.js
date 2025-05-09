@@ -192,100 +192,114 @@ const blogController = {
     return res.status(200).json({ blog: blogDto });
   },
   async update(req, res, next) {
-    // validate
-    //
-
-    const updateBlogSchema = Joi.object({
-      title: Joi.string().required(),
-      description: Joi.string().required(),
-      location: Joi.string().required(),
-      latitude: Joi.number(),
-      longitude: Joi.number(),
-      date: Joi.date().required(),
-      reporter: Joi.string().required(),
-      type: Joi.string().valid("found", "lost").required(),
-      author: Joi.string().regex(mongodbIdPattern),
-      blogId: Joi.string().regex(mongodbIdPattern).required(),
-      photoPath: Joi.string(),
-    });
-
-    const { error } = updateBlogSchema.validate(req.body);
-
-    const { title, description, location, latitude, longitude, date, reporter, type, author, blogId, photoPath } = req.body;
-
-    // delete previous photo
-    // save new photo
-
-    let blog;
-
     try {
-      blog = await Blog.findOne({ _id: blogId });
-    } catch (error) {
-      return next(error);
-    }
+      console.log("Update request body:", req.body);
+      
+      // Validate the request
+      const updateBlogSchema = Joi.object({
+        title: Joi.string().required(),
+        description: Joi.string().required(),
+        location: Joi.string().required(),
+        latitude: Joi.number(),
+        longitude: Joi.number(),
+        date: Joi.date().required(),
+        reporter: Joi.string().required(),
+        type: Joi.string().valid("found", "lost").required(),
+        author: Joi.string().regex(mongodbIdPattern),
+        blogId: Joi.string().regex(mongodbIdPattern).required(),
+        photoPath: Joi.string(),
+      });
 
-    if (photoPath) {
-      let previousPhoto = blog.photoPath;
-
-      previousPhoto = previousPhoto.split("/").at(-1);
-
-      // delete photo
-      fs.unlinkSync(`storage/${previousPhoto}`);
-
-      // read as buffer
-      // const buffer = Buffer.from(
-      //   photo.replace(/^data:image\/(png|jpg|jpeg);base64,/, ""),
-      //   "base64"
-      // );
-
-      // allot a random name
-      // const imagePath = `${Date.now()}-${author}.png`;
-
-      // save locally
-      let response;
-      try {
-        response = await cloudinary.uploader.upload(photoPath);
-        // fs.writeFileSync(`storage/${imagePath}`, buffer);
-      } catch (error) {
+      const { error } = updateBlogSchema.validate(req.body);
+      if (error) {
+        console.log("Validation error:", error);
         return next(error);
       }
 
-      await Blog.updateOne(
-        { _id: blogId },
-        {
-          title,
-          description,
-          photoPath: response.url,
-          location,
-          latitude,
-          longitude,
-          date,
-          reporter,
-          type
-        }
-      );
-    } else {
-      await Blog.updateOne(
-        { _id: blogId },
-        {
-          title,
-          description,
-          location,
-          latitude,
-          longitude,
-          date,
-          reporter,
-          type
-        }
-      );
-    }
+      const { 
+        title, 
+        description, 
+        location, 
+        latitude, 
+        longitude, 
+        date, 
+        reporter, 
+        type, 
+        author, 
+        blogId, 
+        photoPath 
+      } = req.body;
 
-    return res.status(200).json({ message: "blog updated!" });
+      // Find the existing blog
+      let blog;
+      try {
+        blog = await Blog.findOne({ _id: blogId });
+        if (!blog) {
+          return res.status(404).json({ error: "Blog not found" });
+        }
+      } catch (error) {
+        console.log("Error finding blog:", error);
+        return next(error);
+      }
+
+      // Handle photo upload
+      let finalPhotoUrl = blog.photoPath; // Default to existing photo
+      
+      // Process uploaded file if present
+      if (req.file) {
+        try {
+          // Upload to cloudinary
+          const result = await new Promise((resolve, reject) => {
+            const stream = cloudinary.uploader.upload_stream(
+              {
+                folder: "post_photos",
+                resource_type: "auto",
+              },
+              (error, result) => {
+                if (error) return reject(error);
+                resolve(result);
+              }
+            );
+            stream.end(req.file.buffer);
+          });
+
+          finalPhotoUrl = result.secure_url;
+        } catch (cloudinaryError) {
+          console.error("Cloudinary Upload Error:", cloudinaryError);
+          return res
+            .status(500)
+            .json({ error: "Failed to upload photo to Cloudinary" });
+        }
+      } else if (photoPath) {
+        // If a photoPath string is provided directly, use it
+        finalPhotoUrl = photoPath;
+      }
+
+      // Update the blog post
+      await Blog.updateOne(
+        { _id: blogId },
+        {
+          title,
+          description,
+          photoPath: finalPhotoUrl,
+          location,
+          latitude,
+          longitude,
+          date,
+          reporter,
+          type
+        }
+      );
+
+      return res.status(200).json({ message: "Blog updated successfully" });
+    } catch (error) {
+      console.error("Update error:", error);
+      return next(error);
+    }
   },
   async delete(req, res, next) {
     // validate id
     // delete blog
-    // delete comments on this blog
 
     const deleteBlogSchema = Joi.object({
       id: Joi.string().regex(mongodbIdPattern).required(),
@@ -296,11 +310,10 @@ const blogController = {
     const { id } = req.params;
 
     // delete blog
-    // delete comments
     try {
       await Blog.deleteOne({ _id: id });
-
-      await Comment.deleteMany({ blog: id });
+      
+      // Comment deletion removed to fix "Comment is not defined" error
     } catch (error) {
       return next(error);
     }

@@ -99,6 +99,19 @@ router.put('/blog',auth, blogController.update);
 // delete
 router.delete('/blog/:id', auth, blogController.delete);
 
+// forgot password
+router.post('/forgot-password', authController.forgotPassword);
 
+// verify OTP
+router.post('/verify-otp', authController.verifyOTP);
+
+// reset password
+router.post('/reset-password', authController.resetPassword);
+
+// verify reset token
+router.get('/verify-reset-token/:token', authController.verifyResetToken);
+
+// reset password with token
+router.post('/reset-password-with-token', authController.resetPasswordWithToken);
 
 module.exports = router;

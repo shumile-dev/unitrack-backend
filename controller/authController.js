@@ -9,8 +9,34 @@ const streamifier = require('streamifier');
 const Blog=require('../models/blog')
 const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,25}$/;
 
-const authController = {
+// Store OTPs in memory (in production, use Redis or a database)
+const otpStore = new Map();
 
+// Store reset tokens in memory (in production, use Redis or a database)
+const resetTokenStore = new Map();
+
+// Generate a 6-digit OTP
+const generateOTP = () => {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+};
+
+// Generate a random token
+const generateResetToken = () => {
+  return require('crypto').randomBytes(32).toString('hex');
+};
+
+// Send OTP via email - Will be configured properly later
+const sendOTPEmail = async (email, otp) => {
+  // Log OTP for development until email is properly configured
+  console.log("\n========================================");
+  console.log("📧 OTP FOR", email, ":", otp);
+  console.log("========================================\n");
+  
+  // Return true to simulate successful email sending
+  return true;
+};
+
+const authController = {
   async register(req, res, next) {
     console.log(req.body);
     // 1. validate user input
@@ -252,25 +278,24 @@ console.log(req.body)
       next(error); // pass to error handler middleware
     }
   },
- async block(req, res, next) {
-  try {
-    console.log('blo');
-    const post = await Blog.findByIdAndUpdate(
-      req.params.id,
-      { isBlocked: true },
-      { new: true }
-    );
-    console.log('post', post);
-    
-    if (!post) return res.status(404).json({ message: "Post not found" });
-    
-    res.json({ message: "Post blocked", post });
-  } catch (err) {
-    console.error("Block error:", err); // Better debug
-    res.status(500).json({ message: "Error blocking post" });
-  }
-},
-
+  async block(req, res, next) {
+    try {
+      console.log('blo');
+      const post = await Blog.findByIdAndUpdate(
+        req.params.id,
+        { isBlocked: true },
+        { new: true }
+      );
+      console.log('post', post);
+      
+      if (!post) return res.status(404).json({ message: "Post not found" });
+      
+      res.json({ message: "Post blocked", post });
+    } catch (err) {
+      console.error("Block error:", err); // Better debug
+      res.status(500).json({ message: "Error blocking post" });
+    }
+  },
   async getAllUser(req, res, next) {
     try {
     //   console.log('gettinggggg')
@@ -349,115 +374,115 @@ console.log(req.body)
 
     return res.status(200).json({ user: userDto, auth: true });
   },
-// Enhanced with proper error handling and status codes
-async updateUser(req, res, next) {
-  try {
-    console.log('updating')
-    const userId = req.params.id;
-    const { name, phone, email, profileImage, location, rollNumber, semester, department, degree } = req.body;
-    
-    // Validate required fields
-    if (!userId) {
-      return res.status(400).json({ error: 'User ID is required' });
-    }
-
-    // Build update object
-    const updateData = {};
-    if (name) updateData.name = name;
-    if (phone) updateData.phone = phone;
-    if (email) updateData.email = email;
-    if (profileImage) updateData.profileImage = profileImage;
-    if (rollNumber) updateData.rollNumber = rollNumber;
-    if (semester) updateData.semester = semester;
-    if (department) updateData.department = department;
-    if (degree) updateData.degree = degree;
-    
-    // Handle location update
-    if (location) {
-      if (!location.coordinates || location.coordinates.length !== 2) {
-        return res.status(400).json({ error: 'Invalid location format' });
-      }
+  // Enhanced with proper error handling and status codes
+  async updateUser(req, res, next) {
+    try {
+      console.log('updating')
+      const userId = req.params.id;
+      const { name, phone, email, profileImage, location, rollNumber, semester, department, degree } = req.body;
       
-      updateData.location = {
-        type: 'Point',
-        coordinates: [
-          parseFloat(location.coordinates[0]), // longitude
-          parseFloat(location.coordinates[1])  // latitude
-        ]
-      };
-    }
+      // Validate required fields
+      if (!userId) {
+        return res.status(400).json({ error: 'User ID is required' });
+      }
 
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      updateData,
-      { new: true, runValidators: true }
-    );
+      // Build update object
+      const updateData = {};
+      if (name) updateData.name = name;
+      if (phone) updateData.phone = phone;
+      if (email) updateData.email = email;
+      if (profileImage) updateData.profileImage = profileImage;
+      if (rollNumber) updateData.rollNumber = rollNumber;
+      if (semester) updateData.semester = semester;
+      if (department) updateData.department = department;
+      if (degree) updateData.degree = degree;
+      
+      // Handle location update
+      if (location) {
+        if (!location.coordinates || location.coordinates.length !== 2) {
+          return res.status(400).json({ error: 'Invalid location format' });
+        }
+        
+        updateData.location = {
+          type: 'Point',
+          coordinates: [
+            parseFloat(location.coordinates[0]), // longitude
+            parseFloat(location.coordinates[1])  // latitude
+          ]
+        };
+      }
 
-    if (!updatedUser) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+      const updatedUser = await User.findByIdAndUpdate(
+        userId,
+        updateData,
+        { new: true, runValidators: true }
+      );
 
-    res.json({
-      success: true,
-      message: 'User updated successfully',
-      user: updatedUser
-    });
-    
-  } catch (error) {
-    console.error('Update error:', error);
-    res.status(500).json({ 
-      success: false,
-      error: 'Server error',
-      details: error.message 
-    });
-  }
-},
-  async updateProfileImage(req, res, next) {
-  console.log('Updating profile image');
-  const { id } = req.params;
-  console.log(id);
+      if (!updatedUser) {
+        return res.status(404).json({ error: 'User not found' });
+      }
 
-  const schema = Joi.object({
-    // No need to validate base64 now, but you can validate req.file if needed
-  });
-
-  const { error } = schema.validate({});
-  if (error) {
-    return next(error);
-  }
-
-  if (!req.file) {
-    return res.status(400).json({ message: 'No file uploaded' });
-  }
-
-  try {
-    const streamUpload = (req) => {
-      return new Promise((resolve, reject) => {
-        const stream = cloudinary.uploader.upload_stream(
-          { folder: 'profile_images' },
-          (error, result) => {
-            if (result) {
-              resolve(result);
-            } else {
-              reject(error);
-            }
-          }
-        );
-        streamifier.createReadStream(req.file.buffer).pipe(stream);
+      res.json({
+        success: true,
+        message: 'User updated successfully',
+        user: updatedUser
       });
-    };
+      
+    } catch (error) {
+      console.error('Update error:', error);
+      res.status(500).json({ 
+        success: false,
+        error: 'Server error',
+        details: error.message 
+      });
+    }
+  },
+  async updateProfileImage(req, res, next) {
+    console.log('Updating profile image');
+    const { id } = req.params;
+    console.log(id);
 
-    const uploadResult = await streamUpload(req);
-    const photoUrl = uploadResult.secure_url;
+    const schema = Joi.object({
+      // No need to validate base64 now, but you can validate req.file if needed
+    });
 
-    await User.updateOne({ _id: id }, { profileImage: photoUrl });
+    const { error } = schema.validate({});
+    if (error) {
+      return next(error);
+    }
 
-    const user = await User.findOne({ _id: id });
-    const userDto = new UserDTO(user);
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
 
-    return res.status(200).json({ user: userDto, auth: true });
-  } catch (error) {
-    return next(error);
+    try {
+      const streamUpload = (req) => {
+        return new Promise((resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream(
+            { folder: 'profile_images' },
+            (error, result) => {
+              if (result) {
+                resolve(result);
+              } else {
+                reject(error);
+              }
+            }
+          );
+          streamifier.createReadStream(req.file.buffer).pipe(stream);
+        });
+      };
+
+      const uploadResult = await streamUpload(req);
+      const photoUrl = uploadResult.secure_url;
+
+      await User.updateOne({ _id: id }, { profileImage: photoUrl });
+
+      const user = await User.findOne({ _id: id });
+      const userDto = new UserDTO(user);
+
+      return res.status(200).json({ user: userDto, auth: true });
+    } catch (error) {
+      return next(error);
     }
   },
   async getProfileImage(req, res, next) {
@@ -472,8 +497,205 @@ async updateUser(req, res, next) {
       return next(error);
     }
   },
-  
-};
+  // Forgot password controller
+  async forgotPassword(req, res) {
+    const { email } = req.body;
 
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
+    try {
+      // Check if user exists
+      const user = await User.findOne({ email });
+      if (!user) {
+        return res.status(404).json({ message: 'User not found with this email' });
+      }
+
+      // Generate OTP
+      const otp = generateOTP();
+      
+      // Store OTP with expiry time (10 minutes)
+      otpStore.set(email, {
+        otp,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
+      });
+
+      // Send OTP via email
+      const emailSent = await sendOTPEmail(email, otp);
+      
+      if (!emailSent) {
+        return res.status(500).json({ message: 'Failed to send OTP email' });
+      }
+
+      return res.status(200).json({ message: 'OTP sent to your email' });
+    } catch (error) {
+      console.error('Forgot password error:', error);
+      return res.status(500).json({ message: 'Server error. Please try again later.' });
+    }
+  },
+  // Verify OTP controller
+  verifyOTP(req, res) {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({ message: 'Email and OTP are required' });
+    }
+
+    // Get stored OTP details
+    const storedOTPData = otpStore.get(email);
+    
+    if (!storedOTPData) {
+      return res.status(400).json({ message: 'OTP not requested or expired' });
+    }
+
+    // Check if OTP is expired
+    if (new Date() > storedOTPData.expiresAt) {
+      otpStore.delete(email); // Clean up expired OTP
+      return res.status(400).json({ message: 'OTP expired. Please request a new one.' });
+    }
+
+    // Verify OTP
+    if (storedOTPData.otp !== otp) {
+      return res.status(400).json({ message: 'Invalid OTP' });
+    }
+
+    return res.status(200).json({ message: 'OTP verified successfully' });
+  },
+  // Reset password controller
+  async resetPassword(req, res) {
+    const { email, otp, newPassword } = req.body;
+
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({ message: 'Email, OTP, and new password are required' });
+    }
+
+    // Validate password
+    if (!passwordPattern.test(newPassword)) {
+      return res.status(400).json({ 
+        message: 'Password must be 8-25 characters and include at least one uppercase letter, one lowercase letter, and one number'
+      });
+    }
+
+    // Get stored OTP details
+    const storedOTPData = otpStore.get(email);
+    
+    if (!storedOTPData) {
+      return res.status(400).json({ message: 'OTP not requested or expired' });
+    }
+
+    // Check if OTP is expired
+    if (new Date() > storedOTPData.expiresAt) {
+      otpStore.delete(email); // Clean up expired OTP
+      return res.status(400).json({ message: 'OTP expired. Please request a new one.' });
+    }
+
+    // Verify OTP
+    if (storedOTPData.otp !== otp) {
+      return res.status(400).json({ message: 'Invalid OTP' });
+    }
+
+    try {
+      // Find user
+      const user = await User.findOne({ email });
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+
+      // Hash new password
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+      // Update password
+      user.password = hashedPassword;
+      await user.save();
+      
+      // Clean up used OTP
+      otpStore.delete(email);
+
+      return res.status(200).json({ message: 'Password reset successfully' });
+    } catch (error) {
+      console.error('Reset password error:', error);
+      return res.status(500).json({ message: 'Server error. Please try again later.' });
+    }
+  },
+  // Verify reset token
+  verifyResetToken(req, res) {
+    const { token } = req.params;
+    
+    if (!token) {
+      return res.status(400).json({ message: 'Token is required' });
+    }
+    
+    // Get stored token details
+    const tokenData = resetTokenStore.get(token);
+    
+    if (!tokenData) {
+      return res.status(400).json({ message: 'Invalid or expired token' });
+    }
+    
+    // Check if token is expired
+    if (new Date() > tokenData.expiresAt) {
+      resetTokenStore.delete(token);
+      return res.status(400).json({ message: 'Token expired. Please request a new one.' });
+    }
+    
+    return res.status(200).json({ 
+      message: 'Token is valid',
+      email: tokenData.email
+    });
+  },
+  // Reset password with token
+  async resetPasswordWithToken(req, res) {
+    const { token, newPassword } = req.body;
+    
+    if (!token || !newPassword) {
+      return res.status(400).json({ message: 'Token and new password are required' });
+    }
+    
+    // Get stored token details
+    const tokenData = resetTokenStore.get(token);
+    
+    if (!tokenData) {
+      return res.status(400).json({ message: 'Invalid or expired token' });
+    }
+    
+    // Check if token is expired
+    if (new Date() > tokenData.expiresAt) {
+      resetTokenStore.delete(token);
+      return res.status(400).json({ message: 'Token expired. Please request a new one.' });
+    }
+    
+    // Validate password
+    if (!passwordPattern.test(newPassword)) {
+      return res.status(400).json({ 
+        message: 'Password must be 8-25 characters and include at least one uppercase letter, one lowercase letter, and one number'
+      });
+    }
+    
+    try {
+      // Find user
+      const user = await User.findOne({ email: tokenData.email });
+      
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      // Hash new password
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      
+      // Update password
+      user.password = hashedPassword;
+      await user.save();
+      
+      // Clean up used token
+      resetTokenStore.delete(token);
+      
+      return res.status(200).json({ message: 'Password reset successfully' });
+    } catch (error) {
+      console.error('Reset password error:', error);
+      return res.status(500).json({ message: 'Server error. Please try again later.' });
+    }
+  }
+};
 
 module.exports = authController;

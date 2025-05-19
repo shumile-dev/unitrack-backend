@@ -165,8 +165,6 @@ const blogController = {
   },
   async getById(req, res, next) {
     // validate id
-    // response
-
     const getByIdSchema = Joi.object({
       id: Joi.string().regex(mongodbIdPattern).required(),
     });
@@ -178,18 +176,20 @@ const blogController = {
     }
 
     let blog;
-
     const { id } = req.params;
 
     try {
-      blog = await Blog.findOne({ _id: id }).populate("author");
+      blog = await Blog.findOne({ _id: id }).populate('author', 'username email _id profileImage');
+      
+      if (!blog) {
+        return res.status(404).json({ message: 'Blog not found' });
+      }
+
+      const blogDto = new BlogDetailsDTO(blog);
+      return res.status(200).json({ blog: blogDto });
     } catch (error) {
       return next(error);
     }
-
-    const blogDto = new BlogDetailsDTO(blog);
-
-    return res.status(200).json({ blog: blogDto });
   },
   async update(req, res, next) {
     try {

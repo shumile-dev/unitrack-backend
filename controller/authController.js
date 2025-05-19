@@ -238,7 +238,7 @@ console.log(req.body)
 
     const userDto = new UserDTO(user);
     console.log('response', user);
-    return res.status(200).json({ user: userDto, auth: true });
+    return res.status(200).json({ user: userDto, auth: true, accessToken });
   },
   async logout(req, res, next) {
     // 1. delete refresh token from db

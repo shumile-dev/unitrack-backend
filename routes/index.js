@@ -4,6 +4,7 @@ const blogController = require('../controller/blogController');
 const locationController = require('../controller/locationController');
 const upload = require('../middlewares/multer');
 const auth = require('../middlewares/auth');
+const User = require('../models/user');
 
 const router = express.Router();
 router.get('/', (req, res) => {
@@ -17,6 +18,26 @@ router.get('/', (req, res) => {
 
 // register
 router.post('/register', authController.register);
+
+// Admin-only user registration
+router.post('/admin/register', auth, async (req, res, next) => {
+  try {
+    // Check if the current user is an admin
+    const currentUser = await User.findById(req.user._id);
+    if (!currentUser || currentUser.role !== 'admin') {
+      return res.status(403).json({ message: 'Unauthorized: Admin privileges required' });
+    }
+    
+    // Call the register controller with admin privileges
+    // This will allow setting any role including 'admin'
+    return authController.register(req, res, next);
+  } catch (error) {
+    return res.status(500).json({ 
+      message: 'Error creating user',
+      error: error.message 
+    });
+  }
+});
 
 // login
 router.post('/login', authController.login);
@@ -68,6 +89,24 @@ router.post('/updateProfileImage/:id', upload.single('profileImage'), async (req
 
 // For user data update
 router.put('/users/:id',authController.updateUser )
+// Delete user
+router.delete('/users/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await User.findByIdAndDelete(id);
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    return res.status(200).json({ message: 'User deleted successfully' });
+  } catch (error) {
+    return res.status(500).json({ 
+      message: 'Error deleting user',
+      error: error.message 
+    });
+  }
+});
 // get profile img
 router.get('/users/:userId/profile-image', auth, authController.getProfileImage);
 

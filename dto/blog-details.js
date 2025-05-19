@@ -11,17 +11,19 @@ class BlogDetailsDTO{
         this.reporter = blog.reporter;
         this.type = blog.type;
         this.isBlocked = blog.isBlocked;
+        this.isResolved = blog.isResolved;
         this.createdAt = blog.createdAt;
         
         // Handle author properties safely
-        if (blog.author && typeof blog.author !== 'string') {
-            this.author = blog.author._id;
-            this.username = blog.author.username;
-            this.authorPhotoPath = blog.author.profileImage;
+        if (blog.author && typeof blog.author === 'object') {
+            this.author = {
+                _id: blog.author._id,
+                username: blog.author.username,
+                email: blog.author.email,
+                profileImage: blog.author.profileImage
+            };
         } else {
-            this.author = blog.author;
-            this.username = null;
-            this.authorPhotoPath = null;
+            this.author = blog.author; // Keep the author ID if it's a string
         }
     }
 }

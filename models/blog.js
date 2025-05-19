@@ -17,6 +17,14 @@ const blogSchema = new Schema({
     type: Boolean,
     default: false,
   },
+  isResolved: {
+    type: Boolean,
+    default: false,
+  },
+  resolvedClaim: {
+    type: mongoose.SchemaTypes.ObjectId,
+    ref: 'Claim',
+  }
 }, 
 { timestamps: true });
 

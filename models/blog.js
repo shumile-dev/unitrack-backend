@@ -10,6 +10,7 @@ const blogSchema = new Schema({
   longitude: { type: Number },
   date: { type: Date, required: true },
   reporter: { type: String, required: true },
+  phone: { type: String, required: true },
   author: { type: mongoose.SchemaTypes.ObjectId, ref: 'User', required: false },
   authorPhotoPath: { type: String },
   type: { type: String, enum: ['found', 'lost'], required: true },

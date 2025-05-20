@@ -9,6 +9,7 @@ class BlogDTO {
     this.longitude = blog.longitude;
     this.date = blog.date;
     this.reporter = blog.reporter;
+    this.phone = blog.phone;
     this.type = blog.type;
     this.isBlocked = blog.isBlocked;
     

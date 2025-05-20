@@ -35,6 +35,7 @@ const blogController = {
       longitude: Joi.number(),
       date: Joi.date().required(),
       reporter: Joi.string().required(),
+      phone: Joi.string().required(),
       type: Joi.string().valid("found", "lost").required(),
       photoPath: Joi.string(),
       isBlocked: Joi.boolean()
@@ -43,7 +44,7 @@ const blogController = {
     const { error } = createBlogSchema.validate(req.body);
     if (error) return next(error);
     console.log("no error ");
-    const { title, author, description, location, latitude, longitude, date, reporter, type, photoPath, isBlocked } = req.body;
+    const { title, author, description, location, latitude, longitude, date, reporter, phone, type, photoPath, isBlocked } = req.body;
     
     let finalPhotoUrl = photoPath;
 
@@ -95,6 +96,7 @@ const blogController = {
         longitude,
         date,
         reporter,
+        phone,
         type,
         author: author || null,
         isBlocked: isBlocked || false
@@ -204,6 +206,7 @@ const blogController = {
         longitude: Joi.number(),
         date: Joi.date().required(),
         reporter: Joi.string().required(),
+        phone: Joi.string().required(),
         type: Joi.string().valid("found", "lost").required(),
         author: Joi.string().regex(mongodbIdPattern),
         blogId: Joi.string().regex(mongodbIdPattern).required(),
@@ -223,7 +226,8 @@ const blogController = {
         latitude, 
         longitude, 
         date, 
-        reporter, 
+        reporter,
+        phone,
         type, 
         author, 
         blogId, 
@@ -287,6 +291,7 @@ const blogController = {
           longitude,
           date,
           reporter,
+          phone,
           type
         }
       );
